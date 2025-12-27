@@ -6,6 +6,8 @@ import OurFleet from './components/OurFleet'
 import AboutUs from './components/AboutUs'
 import Services from './components/Services'
 import Contact from './components/Contact'
+import UserDashboard from './components/UserDashboard'
+import OwnerDashboard from './components/OwnerDashboard'
 
 function App() {
   return (
@@ -18,6 +20,8 @@ function App() {
           <Route path="/services" element={<Services />} />
           <Route path="/about" element={<AboutUs />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/dashboard/user" element={<UserDashboard />} />
+          <Route path="/dashboard/owner" element={<OwnerDashboard />} />
         </Routes>
       </div>
     </Router>
