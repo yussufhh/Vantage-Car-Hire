@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { authAPI } from '../api';
+import { useNavigate } from 'react-router-dom';
 
 /**
  * Vantage Car Hire - Professional Auth Modal Component
@@ -8,8 +10,11 @@ import React, { useState } from 'react';
  */
 
 const AuthModal = ({ isOpen, onClose }) => {
+  const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
   const [userType, setUserType] = useState('renter'); // 'renter' or 'owner'
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -25,16 +30,76 @@ const AuthModal = ({ isOpen, onClose }) => {
       ...formData,
       [name]: type === 'checkbox' ? checked : value
     });
+    // Clear error when user types
+    if (error) setError('');
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isLogin) {
-      console.log('Login:', formData);
-      // Handle login logic
-    } else {
-      console.log('Signup:', { ...formData, userType });
-      // Handle signup logic
+    setError('');
+    setLoading(true);
+
+    try {
+      if (isLogin) {
+        // Login
+        const response = await authAPI.login(formData.email, formData.password);
+        console.log('Login successful:', response);
+        
+        // Close modal and redirect based on user type
+        onClose();
+        
+        // Trigger a storage event to update navbar
+        window.dispatchEvent(new Event('storage'));
+        
+        if (response.user.user_type === 'owner') {
+          navigate('/owner-dashboard');
+        } else {
+          navigate('/user-dashboard');
+        }
+      } else {
+        // Signup validation
+        if (formData.password !== formData.confirmPassword) {
+          setError('Passwords do not match');
+          setLoading(false);
+          return;
+        }
+        
+        if (!formData.agreeToTerms) {
+          setError('Please agree to the Terms & Conditions');
+          setLoading(false);
+          return;
+        }
+
+        // Signup
+        const signupData = {
+          full_name: formData.fullName,
+          email: formData.email,
+          phone: formData.phone,
+          password: formData.password,
+          user_type: userType,
+          location: 'Garissa, Kenya'
+        };
+
+        const response = await authAPI.signup(signupData);
+        console.log('Signup successful:', response);
+        
+        // Close modal and redirect based on user type
+        onClose();
+        
+        // Trigger a storage event to update navbar
+        window.dispatchEvent(new Event('storage'));
+        
+        if (userType === 'owner') {
+          navigate('/owner-dashboard');
+        } else {
+          navigate('/user-dashboard');
+        }
+      }
+    } catch (err) {
+      console.error('Auth error:', err);
+      setError(err.response?.data?.error || 'An error occurred. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -47,10 +112,12 @@ const AuthModal = ({ isOpen, onClose }) => {
       phone: '',
       agreeToTerms: false
     });
+    setError('');
   };
 
   const switchMode = () => {
     setIsLogin(!isLogin);
+    setError('');
     resetForm();
   };
 
@@ -189,6 +256,18 @@ const AuthModal = ({ isOpen, onClose }) => {
                 </div>
               )}
 
+              {/* Error Message */}
+              {error && (
+                <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl">
+                  <p className="text-sm text-red-600 flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {error}
+                  </p>
+                </div>
+              )}
+
               {/* Form */}
               <form onSubmit={handleSubmit} className="space-y-5">
                 
@@ -321,9 +400,20 @@ const AuthModal = ({ isOpen, onClose }) => {
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  className="w-full bg-[#F97316] hover:bg-[#EA580C] text-white font-bold py-4 rounded-xl transition-all shadow-lg transform hover:-translate-y-0.5"
+                  disabled={loading}
+                  className="w-full bg-[#F97316] hover:bg-[#EA580C] text-white font-bold py-4 rounded-xl transition-all shadow-lg transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {isLogin ? 'Sign In' : 'Create Account'}
+                  {loading ? (
+                    <>
+                      <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Processing...
+                    </>
+                  ) : (
+                    isLogin ? 'Sign In' : 'Create Account'
+                  )}
                 </button>
               </form>
 

@@ -20,8 +20,8 @@ function App() {
           <Route path="/services" element={<Services />} />
           <Route path="/about" element={<AboutUs />} />
           <Route path="/contact" element={<Contact />} />
-          <Route path="/dashboard/user" element={<UserDashboard />} />
-          <Route path="/dashboard/owner" element={<OwnerDashboard />} />
+          <Route path="/user-dashboard" element={<UserDashboard />} />
+          <Route path="/owner-dashboard" element={<OwnerDashboard />} />
         </Routes>
       </div>
     </Router>

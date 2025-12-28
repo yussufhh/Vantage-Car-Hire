@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import AuthModal from './AuthModal';
+import { authAPI } from '../api';
 
 /**
  * Vantage Car Hire - Professional Navbar Component
@@ -10,9 +11,12 @@ import AuthModal from './AuthModal';
  */
 
 const Navbar = () => {
+  const navigate = useNavigate();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [user, setUser] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -22,6 +26,48 @@ const Navbar = () => {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  useEffect(() => {
+    // Check authentication status
+    checkAuthStatus();
+    
+    // Listen for storage changes (login/logout in other tabs)
+    window.addEventListener('storage', checkAuthStatus);
+    return () => window.removeEventListener('storage', checkAuthStatus);
+  }, []);
+
+  const checkAuthStatus = () => {
+    const authenticated = authAPI.isAuthenticated();
+    setIsAuthenticated(authenticated);
+    if (authenticated) {
+      const storedUser = authAPI.getStoredUser();
+      setUser(storedUser);
+    } else {
+      setUser(null);
+    }
+  };
+
+  const handleLogoClick = (e) => {
+    e.preventDefault();
+    if (isAuthenticated && user) {
+      // Redirect to appropriate dashboard based on user type
+      if (user.user_type === 'owner') {
+        navigate('/owner-dashboard');
+      } else {
+        navigate('/user-dashboard');
+      }
+    } else {
+      // Not logged in, go to homepage
+      navigate('/');
+    }
+  };
+
+  const handleLogout = () => {
+    authAPI.logout();
+    setUser(null);
+    setIsAuthenticated(false);
+    navigate('/');
+  };
 
   const navLinks = [
     { name: 'Home', path: '/' },
@@ -43,7 +89,7 @@ const Navbar = () => {
         <div className="flex items-center justify-between h-20">
           
           {/* Logo Section */}
-          <Link to="/" className="flex items-center space-x-3">
+          <a href="#" onClick={handleLogoClick} className="flex items-center space-x-3 cursor-pointer">
             <div className="flex items-center">
               <div className="w-10 h-10 bg-[#F97316] rounded-xl flex items-center justify-center shadow-lg transform hover:rotate-6 transition-transform">
                 <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -57,7 +103,7 @@ const Navbar = () => {
                 <p className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Premium Rentals</p>
               </div>
             </div>
-          </Link>
+          </a>
 
           {/* Desktop Navigation Links */}
           <div className="hidden lg:flex items-center space-x-1">
@@ -74,15 +120,47 @@ const Navbar = () => {
 
           {/* Desktop Action Buttons */}
           <div className="hidden lg:flex items-center space-x-4">
-            <button 
-              onClick={() => setIsAuthModalOpen(true)}
-              className="px-6 py-2.5 text-sm font-bold text-white hover:text-slate-200 rounded-lg transition-all"
-            >
-              Sign In
-            </button>
-            <button className="px-6 py-2.5 bg-[#F97316] hover:bg-[#EA580C] text-white font-bold text-sm rounded-lg transition-all shadow-lg transform hover:-translate-y-0.5">
-              Book Now
-            </button>
+            {isAuthenticated && user ? (
+              <>
+                <div className="flex items-center space-x-3">
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-white">{user.full_name}</p>
+                    <p className="text-xs text-slate-400 capitalize">{user.user_type}</p>
+                  </div>
+                  {user.profile_picture ? (
+                    <img 
+                      src={user.profile_picture} 
+                      alt={user.full_name}
+                      className="w-10 h-10 rounded-full object-cover border-2 border-[#F97316]"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 bg-[#F97316] rounded-full flex items-center justify-center">
+                      <span className="text-white font-bold text-sm">
+                        {user.full_name?.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <button 
+                  onClick={handleLogout}
+                  className="px-6 py-2.5 text-sm font-bold text-white hover:text-slate-200 border border-white/10 rounded-lg transition-all"
+                >
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <>
+                <button 
+                  onClick={() => setIsAuthModalOpen(true)}
+                  className="px-6 py-2.5 text-sm font-bold text-white hover:text-slate-200 rounded-lg transition-all"
+                >
+                  Sign In
+                </button>
+                <button className="px-6 py-2.5 bg-[#F97316] hover:bg-[#EA580C] text-white font-bold text-sm rounded-lg transition-all shadow-lg transform hover:-translate-y-0.5">
+                  Book Now
+                </button>
+              </>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -127,18 +205,53 @@ const Navbar = () => {
               ))}
             </div>
             <div className="flex flex-col space-y-3 pt-6 border-t border-white/5">
-              <button 
-                onClick={() => {
-                  setIsAuthModalOpen(true);
-                  setIsMobileMenuOpen(false);
-                }}
-                className="w-full px-6 py-3 text-sm font-bold text-white hover:text-slate-200 border border-white/10 rounded-lg transition-all"
-              >
-                Sign In
-              </button>
-              <button className="w-full px-6 py-3 bg-[#F97316] hover:bg-[#EA580C] text-white font-bold text-sm rounded-lg transition-all shadow-lg">
-                Book Now
-              </button>
+              {isAuthenticated && user ? (
+                <>
+                  <div className="flex items-center space-x-3 px-4 py-3 bg-white/5 rounded-lg">
+                    {user.profile_picture ? (
+                      <img 
+                        src={user.profile_picture} 
+                        alt={user.full_name}
+                        className="w-12 h-12 rounded-full object-cover border-2 border-[#F97316]"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-[#F97316] rounded-full flex items-center justify-center">
+                        <span className="text-white font-bold">
+                          {user.full_name?.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-sm font-semibold text-white">{user.full_name}</p>
+                      <p className="text-xs text-slate-400 capitalize">{user.user_type}</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      handleLogout();
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="w-full px-6 py-3 text-sm font-bold text-white hover:text-slate-200 border border-white/10 rounded-lg transition-all"
+                  >
+                    Sign Out
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button 
+                    onClick={() => {
+                      setIsAuthModalOpen(true);
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="w-full px-6 py-3 text-sm font-bold text-white hover:text-slate-200 border border-white/10 rounded-lg transition-all"
+                  >
+                    Sign In
+                  </button>
+                  <button className="w-full px-6 py-3 bg-[#F97316] hover:bg-[#EA580C] text-white font-bold text-sm rounded-lg transition-all shadow-lg">
+                    Book Now
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

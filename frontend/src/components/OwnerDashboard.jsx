@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { authAPI, carAPI, bookingAPI, dashboardAPI } from '../api';
+import { useNavigate } from 'react-router-dom';
 
 /**
  * Vantage Car Hire - Professional Car Owner Dashboard Component
@@ -8,7 +10,110 @@ import React, { useState } from 'react';
  */
 
 const OwnerDashboard = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    total_cars: 0,
+    active_bookings: 0,
+    monthly_earnings: 0,
+    avg_rating: 0
+  });
+  const [cars, setCars] = useState([]);
+  const [bookings, setBookings] = useState([]);
+
+  useEffect(() => {
+    loadOwnerData();
+  }, []);
+
+  const loadOwnerData = async () => {
+    try {
+      setLoading(true);
+      
+      // Check if user is authenticated
+      if (!authAPI.isAuthenticated()) {
+        console.log('Not authenticated, redirecting to home');
+        navigate('/');
+        return;
+      }
+
+      // Load user info from storage first
+      const storedUser = authAPI.getStoredUser();
+      if (!storedUser) {
+        console.log('No stored user, redirecting to home');
+        navigate('/');
+        return;
+      }
+      
+      setUser(storedUser);
+
+      // Verify user is an owner
+      if (storedUser.user_type !== 'owner') {
+        console.log('User is not an owner, redirecting to user dashboard');
+        navigate('/user-dashboard');
+        return;
+      }
+
+      // Try to load current user data from API (optional - won't fail if JWT has issues)
+      try {
+        const currentUser = await authAPI.getCurrentUser();
+        setUser(currentUser);
+      } catch (apiError) {
+        console.warn('Could not fetch current user from API, using stored user:', apiError);
+        // Continue with stored user data
+      }
+
+      // Load dashboard stats
+      const statsData = await dashboardAPI.getOwnerStats();
+      setStats(statsData);
+
+      // Load owner's cars
+      const carsData = await carAPI.getOwnerCars();
+      setCars(carsData);
+
+      // Load owner's bookings
+      const bookingsData = await bookingAPI.getOwnerBookings();
+      setBookings(bookingsData);
+
+      setLoading(false);
+    } catch (error) {
+      console.error('Error loading owner data:', error);
+      if (error.response?.status === 401) {
+        authAPI.logout();
+      }
+      setLoading(false);
+    }
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const getStatusColor = (status) => {
+    const colors = {
+      'Available': 'bg-green-100 text-green-700',
+      'Rented': 'bg-blue-100 text-blue-700',
+      'Maintenance': 'bg-yellow-100 text-yellow-700',
+      'Confirmed': 'bg-green-100 text-green-700',
+      'Active': 'bg-blue-100 text-blue-700',
+      'Completed': 'bg-gray-100 text-gray-700',
+      'Cancelled': 'bg-red-100 text-red-700'
+    };
+    return colors[status] || 'bg-gray-100 text-gray-700';
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#F97316] mx-auto mb-4"></div>
+          <p className="text-[#0F172A] font-semibold">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   const tabs = [
     { id: 'overview', name: 'Overview', icon: '📊' },
@@ -18,66 +123,6 @@ const OwnerDashboard = () => {
     { id: 'earnings', name: 'Earnings', icon: '💰' },
     { id: 'reviews', name: 'Reviews', icon: '⭐' },
     { id: 'settings', name: 'Settings', icon: '⚙️' }
-  ];
-
-  const myCars = [
-    {
-      id: 1,
-      name: "Tesla Model S Plaid",
-      image: "https://images.unsplash.com/photo-1617788138017-80ad40651399?auto=format&fit=crop&q=80&w=400",
-      price: "$150/day",
-      status: "Available",
-      bookings: 8,
-      rating: 4.9,
-      earnings: "$3,600"
-    },
-    {
-      id: 2,
-      name: "BMW M4 Competition",
-      image: "https://images.unsplash.com/photo-1555215695-3004980ad54e?auto=format&fit=crop&q=80&w=400",
-      price: "$180/day",
-      status: "Rented",
-      bookings: 6,
-      rating: 4.8,
-      earnings: "$2,880"
-    },
-    {
-      id: 3,
-      name: "Range Rover Autobiography",
-      image: "https://images.unsplash.com/photo-1506015391300-4802dc74de2e?auto=format&fit=crop&q=80&w=400",
-      price: "$220/day",
-      status: "Maintenance",
-      bookings: 10,
-      rating: 4.9,
-      earnings: "$5,280"
-    }
-  ];
-
-  const recentBookings = [
-    {
-      id: 1,
-      car: "Tesla Model S Plaid",
-      renter: "James Wilson",
-      dates: "Jan 15 - Jan 20, 2025",
-      status: "Confirmed",
-      amount: "$750"
-    },
-    {
-      id: 2,
-      car: "BMW M4 Competition",
-      renter: "Sarah Johnson",
-      dates: "Jan 18 - Jan 22, 2025",
-      status: "Active",
-      amount: "$720"
-    },
-    {
-      id: 3,
-      car: "Range Rover Autobiography",
-      renter: "Michael Brown",
-      dates: "Jan 10 - Jan 12, 2025",
-      status: "Completed",
-      amount: "$440"
-    }
   ];
 
   const reviews = [
@@ -114,7 +159,9 @@ const OwnerDashboard = () => {
         
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-[#0F172A] mb-2">Owner Dashboard 🚗</h1>
+          <h1 className="text-4xl font-bold text-[#0F172A] mb-2">
+            Welcome, {user?.full_name || 'Owner'}! 🚗
+          </h1>
           <p className="text-slate-500">Manage your fleet and maximize your earnings</p>
         </div>
 
@@ -140,7 +187,10 @@ const OwnerDashboard = () => {
                 ))}
               </div>
               <div className="mt-6 pt-6 border-t border-slate-100">
-                <button className="w-full px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg font-semibold transition-all">
+                <button 
+                  onClick={() => authAPI.logout()}
+                  className="w-full px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg font-semibold transition-all"
+                >
                   Sign Out
                 </button>
               </div>
@@ -157,10 +207,10 @@ const OwnerDashboard = () => {
                 {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   {[
-                    { label: 'Total Cars', value: '3', icon: '🚗', color: 'bg-blue-500' },
-                    { label: 'Active Bookings', value: '5', icon: '📅', color: 'bg-green-500' },
-                    { label: 'Monthly Earnings', value: '$7.2K', icon: '💰', color: 'bg-[#F97316]' },
-                    { label: 'Avg Rating', value: '4.87', icon: '⭐', color: 'bg-yellow-500' }
+                    { label: 'Total Cars', value: stats.total_cars, icon: '🚗', color: 'bg-blue-500' },
+                    { label: 'Active Bookings', value: stats.active_bookings, icon: '📅', color: 'bg-green-500' },
+                    { label: 'Monthly Earnings', value: `KES ${stats.monthly_earnings?.toLocaleString()}`, icon: '💰', color: 'bg-[#F97316]' },
+                    { label: 'Avg Rating', value: stats.avg_rating?.toFixed(2), icon: '⭐', color: 'bg-yellow-500' }
                   ].map((stat, i) => (
                     <div key={i} className="bg-white rounded-2xl p-6 shadow-md hover:shadow-xl transition-all">
                       <div className="flex items-center justify-between mb-4">
@@ -241,53 +291,67 @@ const OwnerDashboard = () => {
                       + Add New Car
                     </button>
                   </div>
-                  <div className="grid grid-cols-1 gap-6">
-                    {myCars.map((car) => (
-                      <div key={car.id} className="flex flex-col md:flex-row gap-4 p-4 border border-slate-100 rounded-xl hover:shadow-xl transition-all">
-                        <img src={car.image} alt={car.name} className="w-full md:w-48 h-32 object-cover rounded-lg" />
-                        <div className="flex-1">
-                          <div className="flex items-start justify-between mb-3">
-                            <div>
-                              <h3 className="font-bold text-[#0F172A] text-lg mb-1">{car.name}</h3>
-                              <p className="text-[#F97316] font-bold">{car.price}</p>
+                  {cars.length === 0 ? (
+                    <div className="text-center py-12">
+                      <div className="text-6xl mb-4">🚗</div>
+                      <h3 className="text-xl font-bold text-[#0F172A] mb-2">No cars in your fleet</h3>
+                      <p className="text-slate-500 mb-6">Add your first car to start earning</p>
+                      <button 
+                        onClick={() => setActiveTab('add-car')}
+                        className="px-6 py-3 bg-[#F97316] hover:bg-[#EA580C] text-white font-bold rounded-lg transition-all"
+                      >
+                        Add Your First Car
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-6">
+                      {cars.map((car) => (
+                        <div key={car.id} className="flex flex-col md:flex-row gap-4 p-4 border border-slate-100 rounded-xl hover:shadow-xl transition-all">
+                          <img 
+                            src={car.image_url || 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&q=80&w=400'} 
+                            alt={car.name} 
+                            className="w-full md:w-48 h-32 object-cover rounded-lg" 
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between mb-3">
+                              <div>
+                                <h3 className="font-bold text-[#0F172A] text-lg mb-1">{car.name}</h3>
+                                <p className="text-[#F97316] font-bold">KES {car.daily_rate?.toLocaleString()}/day</p>
+                              </div>
+                              <span className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(car.status)}`}>
+                                {car.status}
+                              </span>
                             </div>
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                              car.status === 'Available' ? 'bg-green-100 text-green-700' :
-                              car.status === 'Rented' ? 'bg-blue-100 text-blue-700' :
-                              'bg-yellow-100 text-yellow-700'
-                            }`}>
-                              {car.status}
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-3 gap-4 mb-4">
-                            <div>
-                              <p className="text-xs text-slate-500">Total Bookings</p>
-                              <p className="font-bold text-slate-700">{car.bookings}</p>
+                            <div className="grid grid-cols-3 gap-4 mb-4">
+                              <div>
+                                <p className="text-xs text-slate-500">Total Bookings</p>
+                                <p className="font-bold text-slate-700">{car.total_bookings || 0}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-slate-500">Rating</p>
+                                <p className="font-bold text-slate-700">⭐ {car.rating || 0}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-slate-500">Total Earned</p>
+                                <p className="font-bold text-[#F97316]">KES {car.total_earnings?.toLocaleString() || 0}</p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="text-xs text-slate-500">Rating</p>
-                              <p className="font-bold text-slate-700">⭐ {car.rating}</p>
+                            <div className="flex gap-2">
+                              <button className="px-4 py-2 bg-[#F97316] hover:bg-[#EA580C] text-white font-bold rounded-lg transition-all">
+                                Edit
+                              </button>
+                              <button className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition-all">
+                                View Details
+                              </button>
+                              <button className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition-all">
+                                Deactivate
+                              </button>
                             </div>
-                            <div>
-                              <p className="text-xs text-slate-500">Total Earned</p>
-                              <p className="font-bold text-[#F97316]">{car.earnings}</p>
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <button className="px-4 py-2 bg-[#F97316] hover:bg-[#EA580C] text-white font-bold rounded-lg transition-all">
-                              Edit
-                            </button>
-                            <button className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition-all">
-                              View Details
-                            </button>
-                            <button className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition-all">
-                              Deactivate
-                            </button>
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -376,44 +440,48 @@ const OwnerDashboard = () => {
               <div className="space-y-6">
                 <div className="bg-white rounded-2xl shadow-md p-6">
                   <h2 className="text-2xl font-bold text-[#0F172A] mb-6">All Bookings</h2>
-                  <div className="space-y-4">
-                    {recentBookings.map((booking) => (
-                      <div key={booking.id} className="p-4 border border-slate-100 rounded-xl hover:shadow-lg transition-all">
-                        <div className="flex items-center justify-between mb-3">
-                          <h3 className="font-bold text-[#0F172A]">{booking.car}</h3>
-                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                            booking.status === 'Active' ? 'bg-blue-100 text-blue-700' :
-                            booking.status === 'Confirmed' ? 'bg-green-100 text-green-700' :
-                            'bg-slate-100 text-slate-700'
-                          }`}>
-                            {booking.status}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
-                          <div>
-                            <p className="text-slate-500">Renter</p>
-                            <p className="font-semibold">{booking.renter}</p>
+                  {bookings.length === 0 ? (
+                    <div className="text-center py-12">
+                      <div className="text-6xl mb-4">📅</div>
+                      <h3 className="text-xl font-bold text-[#0F172A] mb-2">No bookings yet</h3>
+                      <p className="text-slate-500">Your car bookings will appear here</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {bookings.map((booking) => (
+                        <div key={booking.id} className="p-4 border border-slate-100 rounded-xl hover:shadow-lg transition-all">
+                          <div className="flex items-center justify-between mb-3">
+                            <h3 className="font-bold text-[#0F172A]">{booking.car?.name || 'N/A'}</h3>
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(booking.status)}`}>
+                              {booking.status}
+                            </span>
                           </div>
-                          <div>
-                            <p className="text-slate-500">Dates</p>
-                            <p className="font-semibold">{booking.dates}</p>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
+                            <div>
+                              <p className="text-slate-500">Renter</p>
+                              <p className="font-semibold">{booking.user?.full_name || 'N/A'}</p>
+                            </div>
+                            <div>
+                              <p className="text-slate-500">Dates</p>
+                              <p className="font-semibold">{formatDate(booking.start_date)} - {formatDate(booking.end_date)}</p>
+                            </div>
+                            <div>
+                              <p className="text-slate-500">Amount</p>
+                              <p className="font-semibold text-[#F97316]">KES {booking.total_price?.toLocaleString()}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-slate-500">Amount</p>
-                            <p className="font-semibold text-[#F97316]">{booking.amount}</p>
+                          <div className="flex gap-2">
+                            <button className="px-4 py-2 bg-[#F97316] hover:bg-[#EA580C] text-white font-bold rounded-lg transition-all text-sm">
+                              View Details
+                            </button>
+                            <button className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition-all text-sm">
+                              Contact Renter
+                            </button>
                           </div>
                         </div>
-                        <div className="flex gap-2">
-                          <button className="px-4 py-2 bg-[#F97316] hover:bg-[#EA580C] text-white font-bold rounded-lg transition-all text-sm">
-                            View Details
-                          </button>
-                          <button className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition-all text-sm">
-                            Contact Renter
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
